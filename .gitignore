@@ -1,0 +1,8 @@
+out/*
+__pycache__
+*.mp4
+*.png
+*.npy
+*.ply
+*.gif
+*.jpg
