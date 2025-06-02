@@ -29,7 +29,6 @@ from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import DistributedDataParallelKwargs, ProjectConfiguration, set_seed
 from huggingface_hub import create_repo, upload_folder
-from peft import LoraConfig, get_peft_model_state_dict, set_peft_model_state_dict
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from tqdm.auto import tqdm
@@ -656,80 +655,11 @@ def prepare_rotary_positional_embeddings(
     freqs_sin = freqs_sin.to(device=device)
     return freqs_cos, freqs_sin
 
-import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-def get_black_region_mask_tensor(video_tensor, threshold=2, kernel_size=15):
-    """
-    Generate cleaned binary masks for black regions in a video tensor.
-    
-    Args:
-        video_tensor (torch.Tensor): shape (T, H, W, 3), RGB, uint8
-        threshold (int): pixel intensity threshold to consider a pixel as black (default: 20)
-        kernel_size (int): morphological kernel size to smooth masks (default: 7)
-    
-    Returns:
-        torch.Tensor: binary mask tensor of shape (T, H, W), where 1 indicates black region
-    """
-    video_uint8 = ((video_tensor + 1.0) * 127.5).clamp(0, 255).to(torch.uint8).permute(0, 2, 3, 1)  # shape (T, H, W, C)
-    video_np = video_uint8.numpy()
-
-    T, H, W, _ = video_np.shape
-    masks = np.empty((T, H, W), dtype=np.uint8)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-
-    for t in range(T):
-        img = video_np[t]  # (H, W, 3), uint8
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY_INV)
-        mask_cleaned = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        masks[t] = (mask_cleaned > 0).astype(np.uint8)
-    return torch.from_numpy(masks)
-
-def maxpool_mask_tensor(mask_tensor):
-    """
-    Apply spatial and temporal max pooling to a batch of binary mask tensors.
-
-    Args:
-        mask_tensor (torch.Tensor): shape (bs, f, 1, h, w), binary mask (0 or 1)
-
-    Returns:
-        torch.Tensor: shape (bs, 13, 1, 30, 45), pooled binary masks
-    """
-    bs, f, c, h, w = mask_tensor.shape
-    assert c == 1, "Channel must be 1"
-    assert f % 12 == 0, "Frame number must be divisible by 12 (e.g., 48)"
-    assert h % 30 == 0 and w % 45 == 0, "Height and width must be divisible by 30 and 45"
-
-    # Spatial max pooling
-    x = mask_tensor.float().view(bs * f, 1, h, w)  # (bs*f, 1, h, w)
-    x_pooled = F.max_pool2d(x, kernel_size=(h // 30, w // 45))  # (bs*f, 1, 30, 45)
-    x_pooled = x_pooled.view(bs, f, 1, 30, 45)
-
-    # Temporal max pooling
-    t_groups = f // 12
-    x_pooled = x_pooled.view(bs, 12, t_groups, 1, 30, 45)
-    pooled_max = torch.amax(x_pooled, dim=2)  # (bs, 12, 1, 30, 45)
-
-    # Add zero frame for each sample
-    zero_frame = torch.zeros_like(pooled_max[:, 0:1])  # (bs, 1, 1, 30, 45)
-    pooled_mask = torch.cat([zero_frame, pooled_max], dim=1)  # (bs, 13, 1, 30, 45)
-
-    return 1 - pooled_mask.int()
-
-
 def avgpool_mask_tensor(mask_tensor):
-    """
-    Apply spatial and temporal average pooling independently to each sample in a batch.
-
-    Args:
-        mask_tensor (torch.Tensor): shape (bs, f, 1, h, w), binary mask (0 or 1)
-
-    Returns:
-        torch.Tensor: shape (bs, 13, 1, 30, 45), pooled binary masks
-    """
     bs, f, c, h, w = mask_tensor.shape
     assert c == 1, "Channel must be 1"
     assert f % 12 == 0, "Frame number must be divisible by 12 (e.g., 48)"
@@ -967,15 +897,6 @@ def main(args):
                 repo_id=args.hub_model_id or Path(args.output_dir).name,
                 exist_ok=True,
             ).repo_id
-
-    # # Prepare models and scheduler
-    # tokenizer = AutoTokenizer.from_pretrained(
-    #     args.pretrained_model_name_or_path, subfolder="tokenizer", revision=args.revision
-    # )
-
-    # text_encoder = T5EncoderModel.from_pretrained(
-    #     args.pretrained_model_name_or_path, subfolder="text_encoder", revision=args.revision
-    # )
 
     # CogVideoX-2b weights are stored in float16
     # CogVideoX-5b and CogVideoX-5b-I2V weights are stored in bfloat16

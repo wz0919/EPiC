@@ -29,7 +29,6 @@ from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import DistributedDataParallelKwargs, ProjectConfiguration, set_seed
 from huggingface_hub import create_repo, upload_folder
-from peft import LoraConfig, get_peft_model_state_dict, set_peft_model_state_dict
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from tqdm.auto import tqdm
@@ -99,7 +98,7 @@ def get_args():
     parser.add_argument(
         "--text_embedding_path",
         type=str,
-        default="/root_path/text_embedding",
+        default="./data/train/caption_embs",
         required=False,
         help=("Relative path to the text embeddings."),
     )
@@ -656,80 +655,11 @@ def prepare_rotary_positional_embeddings(
     freqs_sin = freqs_sin.to(device=device)
     return freqs_cos, freqs_sin
 
-import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-def get_black_region_mask_tensor(video_tensor, threshold=2, kernel_size=15):
-    """
-    Generate cleaned binary masks for black regions in a video tensor.
-    
-    Args:
-        video_tensor (torch.Tensor): shape (T, H, W, 3), RGB, uint8
-        threshold (int): pixel intensity threshold to consider a pixel as black (default: 20)
-        kernel_size (int): morphological kernel size to smooth masks (default: 7)
-    
-    Returns:
-        torch.Tensor: binary mask tensor of shape (T, H, W), where 1 indicates black region
-    """
-    video_uint8 = ((video_tensor + 1.0) * 127.5).clamp(0, 255).to(torch.uint8).permute(0, 2, 3, 1)  # shape (T, H, W, C)
-    video_np = video_uint8.numpy()
-
-    T, H, W, _ = video_np.shape
-    masks = np.empty((T, H, W), dtype=np.uint8)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-
-    for t in range(T):
-        img = video_np[t]  # (H, W, 3), uint8
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        _, mask = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY_INV)
-        mask_cleaned = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        masks[t] = (mask_cleaned > 0).astype(np.uint8)
-    return torch.from_numpy(masks)
-
-def maxpool_mask_tensor(mask_tensor):
-    """
-    Apply spatial and temporal max pooling to a batch of binary mask tensors.
-
-    Args:
-        mask_tensor (torch.Tensor): shape (bs, f, 1, h, w), binary mask (0 or 1)
-
-    Returns:
-        torch.Tensor: shape (bs, 13, 1, 30, 45), pooled binary masks
-    """
-    bs, f, c, h, w = mask_tensor.shape
-    assert c == 1, "Channel must be 1"
-    assert f % 12 == 0, "Frame number must be divisible by 12 (e.g., 48)"
-    assert h % 30 == 0 and w % 45 == 0, "Height and width must be divisible by 30 and 45"
-
-    # Spatial max pooling
-    x = mask_tensor.float().view(bs * f, 1, h, w)  # (bs*f, 1, h, w)
-    x_pooled = F.max_pool2d(x, kernel_size=(h // 30, w // 45))  # (bs*f, 1, 30, 45)
-    x_pooled = x_pooled.view(bs, f, 1, 30, 45)
-
-    # Temporal max pooling
-    t_groups = f // 12
-    x_pooled = x_pooled.view(bs, 12, t_groups, 1, 30, 45)
-    pooled_max = torch.amax(x_pooled, dim=2)  # (bs, 12, 1, 30, 45)
-
-    # Add zero frame for each sample
-    zero_frame = torch.zeros_like(pooled_max[:, 0:1])  # (bs, 1, 1, 30, 45)
-    pooled_mask = torch.cat([zero_frame, pooled_max], dim=1)  # (bs, 13, 1, 30, 45)
-
-    return 1 - pooled_mask.int()
-
-
 def avgpool_mask_tensor(mask_tensor):
-    """
-    Apply spatial and temporal average pooling independently to each sample in a batch.
-
-    Args:
-        mask_tensor (torch.Tensor): shape (bs, f, 1, h, w), binary mask (0 or 1)
-
-    Returns:
-        torch.Tensor: shape (bs, 13, 1, 30, 45), pooled binary masks
-    """
     bs, f, c, h, w = mask_tensor.shape
     assert c == 1, "Channel must be 1"
     assert f % 12 == 0, "Frame number must be divisible by 12 (e.g., 48)"
@@ -754,70 +684,6 @@ def avgpool_mask_tensor(mask_tensor):
     pooled_mask = torch.cat([zero_frame, pooled_mask], dim=1)  # (bs, 13, 1, 30, 45)
 
     return 1 - pooled_mask  # invert
-
-
-import torch
-import math
-
-def add_dashed_rays_to_video(video_tensor, num_perp_samples=50, density_decay=0.075):
-    T, C, H, W = video_tensor.shape
-    max_length = int((H**2 + W**2) ** 0.5) + 10
-    center = torch.tensor([W / 2, H / 2])
-
-    # Random direction and perpendicular
-    theta = torch.rand(1).item() * 2 * math.pi
-    direction = torch.tensor([math.cos(theta), math.sin(theta)])
-    direction = direction / direction.norm()
-    d_perp = torch.tensor([-direction[1], direction[0]])
-
-    # Ray origins
-    half_len = max(H, W) // 2
-    positions = torch.linspace(-half_len, half_len, num_perp_samples)
-    perp_coords = center[None, :] + positions[:, None] * d_perp[None, :]
-    x0, y0 = perp_coords[:, 0], perp_coords[:, 1]
-
-    # Ray steps
-    steps = []
-    dist = 0
-    while dist < max_length:
-        steps.append(dist)
-        dist += 1.0 + density_decay * dist
-    steps = torch.tensor(steps)
-    S = len(steps)
-
-    # All ray endpoints
-    dxdy = direction[None, :] * steps[:, None]
-    all_xy = perp_coords[:, None, :] + dxdy[None, :, :]
-    all_xy = all_xy.reshape(-1, 2)
-    all_x = all_xy[:, 0].round().long()
-    all_y = all_xy[:, 1].round().long()
-
-    valid = (0 <= all_x) & (all_x < W) & (0 <= all_y) & (all_y < H)
-    all_x = all_x[valid]
-    all_y = all_y[valid]
-
-    # Sample base colors from first frame
-    x0r = x0.round().long().clamp(0, W - 1)
-    y0r = y0.round().long().clamp(0, H - 1)
-    frame0 = video_tensor[0]  # (C, H, W)
-    base_colors = frame0[:, y0r, x0r]
-    base_colors = base_colors.repeat_interleave(S, dim=1)[:, valid]
-
-    # Overlay on all frames
-    video_out = video_tensor.clone()
-    offsets = [(0, 0), (0, 1), (1, 0), (1, 1)]
-    for dxo, dyo in offsets:
-        ox = all_x + dxo
-        oy = all_y + dyo
-        inside = (0 <= ox) & (ox < W) & (0 <= oy) & (oy < H)
-        ox = ox[inside]
-        oy = oy[inside]
-        colors = base_colors[:, inside]  # (C, K)
-
-        for c in range(C):
-            video_out[1:, c, oy, ox] = colors[c][None, :].expand(T - 1, -1)
-
-    return video_out
 
 def get_optimizer(args, params_to_optimize, use_deepspeed: bool = False):
     # Use DeepSpeed optimzer

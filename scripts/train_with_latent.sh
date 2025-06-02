@@ -1,10 +1,12 @@
-export MODEL_PATH="/nas-hdd/zun/pretrained_models/CogVideoX-5b-I2V"
+MODEL_PATH="pretrained/CogVideoX-5b-I2V"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-video_root_dir="/nas-ssd2/zun/datasets/camera_control_with_point_clouds/panda70m_black_ratio_0.65_jitter_2.0_high_res" # subfolders: annotations/ pose_files/ video_clips/
+video_root_dir="data/train" # subfolders: annotations/ pose_files/ video_clips/
 
 dir=`pwd`
-output_dir=${dir}/out/EPiC_latent_trained
+output_dir=${dir}/out/EPiC
+MODEL_PATH=${dir}/${MODEL_PATH}
+video_root_dir=${dir}/${video_root_dir}
 cd training
 
 CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" accelerate launch --config_file accelerate_config_machine.yaml --multi_gpu --main_process_port 29502 \
@@ -55,4 +57,4 @@ CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" accelerate launch --config_file accelerat
   --controlnet_transformer_attention_head_dim 64 \
   --controlnet_transformer_out_proj_dim_factor 64 \
   --controlnet_transformer_out_proj_dim_zero_init \
-  --text_embedding_path /nas-ssd2/zun/datasets/camera_control_with_point_clouds/panda70m_black_ratio_0.65/caption_embs
+  --text_embedding_path "${video_root_dir}/caption_embs" 

@@ -1,8 +1,15 @@
 out/*
+!out/EPiC_pretrained
+
 __pycache__
-*.mp4
 *.png
 *.npy
 *.ply
 *.gif
 *.jpg
+
+data/train/*
+!data/train/.gitkeep
+
+pretrained/*
+!pretrained/.gitkeep
