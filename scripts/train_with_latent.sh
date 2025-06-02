@@ -32,7 +32,7 @@ CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" accelerate launch --config_file accelerat
   --controlnet_weights 1.0 \
   --train_batch_size 2 \
   --dataloader_num_workers 0 \
-  --num_train_epochs 200 \
+  --num_train_epochs 2 \
   --checkpointing_steps 500 \
   --gradient_accumulation_steps 1 \
   --learning_rate 2e-4 \

@@ -4,10 +4,11 @@
 
 #### [Zun Wang](https://zunwang1.github.io/), [Jaemin Cho](https://j-min.io/),  [Jialu Li](https://jialuli-luka.github.io/), [Han Lin](https://hl-hanlin.github.io/), [Jaehong Yoon](https://jaehong31.github.io), [Yue Zhang](https://zhangyuejoslin.github.io/), [Mohit Bansal](https://www.cs.unc.edu/~mbansal/)
 
-<video src="data/corgi.mp4" controls autoplay loop muted width="600">
-  Your browser does not support the video tag.
-</video>
-
+<div align="center">
+  <video src="https://zunwang1.github.io/images/epic.mp4" controls autoplay loop muted width="600">
+    Your browser does not support the video tag.
+  </video>
+</div>
 
 ## ✅ To-Do Checklist
 
@@ -96,7 +97,7 @@ To do so, you need to first prepare the them like `train/videos`, `train/caption
 ```
 bash preprocess.sh masking
 ```
-To get the corresponding masked videos from estimated dense optical flow, and
+To get the corresponding masked anchor videos from estimated dense optical flow, and
 ```
 bash preprocess.sh caption
 bash preprocess.sh latent
@@ -108,6 +109,8 @@ Editing GPU configs in `scripts/train_with_latent.sh` and `training/accelerate_c
 ```
 bash scripts/train_with_latent.sh
 ```
+You can stop training after 500 iteration, which will take less than 2 hours on 8xH100 GPUs.
+
 (Alternatively: bash scripts/train.sh for online latent encoding, but much slower)
 
 ## 🧪 Inference
@@ -121,7 +124,7 @@ bash get_anchor_videos.sh v2v_try
 The processed data will be saved to `data/v2v_try`.
 You can modify camera pos type, operation mode, and other parameters to get anchor videos following your own trajectory, please refer to [configuration document](inference/v2v_data/config_help.md) for setup.
 Then inference with 
-```
+``` 
 bash scripts/inference.sh v2v_try
 ```
 
@@ -134,4 +137,4 @@ Coming soon!
 - The v2v data processing pipeline largely builds upon [TrajectoryCrafter](https://github.com/TrajectoryCrafter)
 
 ## 🔗 Related Works
-A non-exhaustive list of related works includes: [CogVideoX](https://github.com/THUDM/CogVideo/tree/main), [ViewCrafter](https://github.com/Drexubery/ViewCrafter), [GCD](https://gcd.cs.columbia.edu/), [NVS-Solver](https://github.com/ZHU-Zhiyu/NVS_Solver), [DimensionX](https://github.com/wenqsun/DimensionX), [ReCapture](https://generative-video-camera-controls.github.io/), [TrajAttention](https://xizaoqu.github.io/trajattn/), [GS-DiT](https://wkbian.github.io/Projects/GS-DiT/), [DaS](https://igl-hkust.github.io/das/), [RecamMaster](https://github.com/KwaiVGI/ReCamMaster), [GEN3C](https://research.nvidia.com/labs/toronto-ai/GEN3C/), [CAT4D](https://cat-4d.github.io/), [Uni3C](https://github.com/ewrfcas/Uni3C), [AC3D](https://github.com/snap-research/ac3d), [RealCam-I2V](https://github.com/ZGCTroy/RealCam-I2V), [CamCtrl3D](https://camctrl3d.github.io/)...
+A non-exhaustive list of related works includes: [CogVideoX](https://github.com/THUDM/CogVideo/tree/main), [ViewCrafter](https://github.com/Drexubery/ViewCrafter), [GCD](https://gcd.cs.columbia.edu/), [NVS-Solver](https://github.com/ZHU-Zhiyu/NVS_Solver), [DimensionX](https://github.com/wenqsun/DimensionX), [ReCapture](https://generative-video-camera-controls.github.io/), [TrajAttention](https://xizaoqu.github.io/trajattn/), [GS-DiT](https://wkbian.github.io/Projects/GS-DiT/), [DaS](https://igl-hkust.github.io/das/), [RecamMaster](https://github.com/KwaiVGI/ReCamMaster), [TrajectoryCrafter](https://github.com/TrajectoryCrafter/TrajectoryCrafter), [GEN3C](https://research.nvidia.com/labs/toronto-ai/GEN3C/), [CAT4D](https://cat-4d.github.io/), [Uni3C](https://github.com/ewrfcas/Uni3C), [AC3D](https://github.com/snap-research/ac3d), [RealCam-I2V](https://github.com/ZGCTroy/RealCam-I2V), [CamCtrl3D](https://camctrl3d.github.io/)...
