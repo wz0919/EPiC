@@ -5,7 +5,6 @@ __pycache__
 *.png
 *.npy
 *.ply
-*.gif
 *.jpg
 
 data/train/*

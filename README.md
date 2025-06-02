@@ -4,11 +4,9 @@
 
 #### [Zun Wang](https://zunwang1.github.io/), [Jaemin Cho](https://j-min.io/),  [Jialu Li](https://jialuli-luka.github.io/), [Han Lin](https://hl-hanlin.github.io/), [Jaehong Yoon](https://jaehong31.github.io), [Yue Zhang](https://zhangyuejoslin.github.io/), [Mohit Bansal](https://www.cs.unc.edu/~mbansal/)
 
-<div align="center">
-  <video src="https://zunwang1.github.io/images/epic.mp4" controls autoplay loop muted width="600">
-    Your browser does not support the video tag.
-  </video>
-</div>
+<p align="center">
+  <img src="data/epic_gif.gif" width="720">
+</p>
 
 ## ✅ To-Do Checklist
 
